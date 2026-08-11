@@ -29,11 +29,20 @@ export class ProductService {
     }
 
     if (low_stock) {
-      // Products where current_stock <= minimum_stock
-      where.current_stock = { lte: prisma.product.fields.minimum_stock };
-      // Prisma doesn't support field-to-field comparison directly in where,
-      // so we use raw filter approach
-      delete where.current_stock;
+      const allProducts = await prisma.product.findMany({
+        where,
+        orderBy: { name: 'asc' },
+      });
+
+      const lowStockProducts = allProducts.filter(
+        (p) => p.current_stock <= p.minimum_stock
+      );
+      return {
+        products: lowStockProducts.slice(skip, skip + limit),
+        total: lowStockProducts.length,
+        page,
+        limit,
+      };
     }
 
     const [products, total] = await Promise.all([
@@ -46,24 +55,7 @@ export class ProductService {
       prisma.product.count({ where }),
     ]);
 
-    // If low_stock filter, filter in application
-    let filteredProducts = products;
-    let filteredTotal = total;
-
-    if (low_stock) {
-      const allProducts = await prisma.product.findMany({
-        where,
-        orderBy: { name: 'asc' },
-      });
-
-      const lowStockProducts = allProducts.filter(
-        (p) => p.current_stock <= p.minimum_stock
-      );
-      filteredTotal = lowStockProducts.length;
-      filteredProducts = lowStockProducts.slice(skip, skip + limit);
-    }
-
-    return { products: filteredProducts, total: filteredTotal, page, limit };
+    return { products, total, page, limit };
   }
 
   /**
