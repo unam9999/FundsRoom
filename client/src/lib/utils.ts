@@ -1,5 +1,5 @@
-export const cn = (...v: Array<string | false | null | undefined>) => v.filter(Boolean).join(' ')
-export const money = (value: string | number | null | undefined) => new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:0}).format(Number(value || 0))
-export const dateTime = (value: string) => new Intl.DateTimeFormat('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}).format(new Date(value))
-export const dateOnly = (value: string) => new Intl.DateTimeFormat('en-IN',{day:'2-digit',month:'short',year:'numeric'}).format(new Date(value))
-export const initials = (name: string) => name.split(' ').map(x=>x[0]).slice(0,2).join('').toUpperCase()
+export const money = (value:number|string) => `₹${Number(value || 0).toLocaleString('en-IN',{maximumFractionDigits:2})}`;
+export const dateTime = (value:string) => new Date(value).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+export const dateOnly = (value:string) => new Date(value).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
+export const initials = (name:string) => name.split(/\s+/).slice(0,2).map(x=>x[0]).join('').toUpperCase();
+export const cn = (...xs:(string|false|null|undefined)[]) => xs.filter(Boolean).join(' ');

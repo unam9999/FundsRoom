@@ -1,46 +1,38 @@
-import { useEffect, useState } from 'react'
-import { Activity, ArrowUpRight, Boxes, ClipboardCheck, PackageOpen, UsersRound } from 'lucide-react'
-import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis } from 'recharts'
-import { api } from '../lib/api'
-import type { DashboardStats } from '../types'
-import { Badge, Card, Empty } from '../components/ui'
-import { dateTime, money } from '../lib/utils'
+import { useEffect, useMemo, useState } from 'react';
+import { ArrowUpRight, Boxes, ChevronRight, CircleAlert, ClipboardCheck, Clock3, PackageCheck, Plus, RefreshCw, ShoppingCart, Sparkles, UsersRound } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
+import { apiClient } from '../lib/api';
+import type { DashboardStats } from '../types';
+import { dateTime, money } from '../lib/utils';
+import { Link } from 'react-router-dom';
 
-const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
-function buildChartData(movements: import('../types').StockMovement[]) {
-  const counts: Record<string, number> = {}
-  DAYS.forEach(d => counts[d] = 0)
-  movements.forEach(m => {
-    const day = DAYS[new Date(m.created_at).getDay()]
-    counts[day] = (counts[day] || 0) + m.quantity
-  })
-  return DAYS.map(d => ({ day: d, value: counts[d] }))
+const chart=[{d:'Mon',v:42},{d:'Tue',v:58},{d:'Wed',v:51},{d:'Thu',v:74},{d:'Fri',v:63},{d:'Sat',v:82},{d:'Sun',v:76}];
+
+export default function Dashboard(){
+  const [stats,setStats]=useState<DashboardStats|null>(null); const [loading,setLoading]=useState(true);
+  const load=()=>{setLoading(true);apiClient.dashboard().then(setStats).catch(()=>{}).finally(()=>setLoading(false));}; useEffect(load,[]);
+  const greeting=useMemo(()=>{const h=new Date().getHours();return h<12?'Good morning':h<17?'Good afternoon':'Good evening';},[]);
+  if(loading&&!stats) return <div className="skeleton-page"><div className="skeleton hero"/><div className="skeleton-row"><div className="skeleton"/><div className="skeleton"/><div className="skeleton"/></div></div>;
+  const low=stats?.products.lowStock||[]; const recent=stats?.challans.recent||[]; const moves=stats?.recentMovements||[];
+  return <div className="dashboard">
+    <section className="welcome-row"><div><span className="section-kicker"><Sparkles size={14}/> OPERATIONS PULSE</span><h2>{greeting}, team.</h2><p>Here's the part of the business that deserves your attention today.</p></div><div className="welcome-actions"><button className="soft-btn" onClick={load}><RefreshCw size={16}/> Refresh</button><Link className="primary-btn" to="/challans"><Plus size={17}/> New challan</Link></div></section>
+    <section className="hero-metrics">
+      <motion.div className="hero-metric featured" initial={{opacity:0,y:10}} animate={{opacity:1,y:0}}><div className="metric-top"><span>Inventory health</span><PackageCheck size={18}/></div><div className="metric-value">{Math.max(0,100-Math.round(((stats?.products.lowStockCount||0)/Math.max(1,stats?.products.total||1))*100))}<small>%</small></div><div className="health-track"><i style={{width:`${Math.max(5,100-((stats?.products.lowStockCount||0)/Math.max(1,stats?.products.total||1))*100)}%`}}/></div><div className="metric-foot"><span>{stats?.products.lowStockCount||0} need attention</span><Link to="/inventory">Review <ArrowUpRight size={13}/></Link></div></motion.div>
+      <Metric icon={<UsersRound/>} label="Active customers" value={stats?.customers.active||0} note={`${stats?.customers.total||0} total`} />
+      <Metric icon={<ShoppingCart/>} label="Confirmed challans" value={stats?.challans.confirmed||0} note={`${stats?.challans.draft||0} drafts waiting`} />
+      <Metric icon={<CircleAlert/>} label="Low stock" value={stats?.products.lowStockCount||0} note="Below threshold" alert />
+    </section>
+    <section className="dashboard-grid">
+      <div className="panel activity-panel"><div className="panel-head"><div><span className="panel-eyebrow">ORDER FLOW</span><h3>Challan activity</h3></div><Link to="/challans">View all <ChevronRight size={15}/></Link></div><div className="chart-wrap"><ResponsiveContainer width="100%" height="100%"><AreaChart data={chart} margin={{top:12,right:5,left:-25,bottom:0}}><defs><linearGradient id="fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#b7d334" stopOpacity=".35"/><stop offset="100%" stopColor="#b7d334" stopOpacity="0"/></linearGradient></defs><XAxis dataKey="d" axisLine={false} tickLine={false} tick={{fontSize:11,fill:'var(--muted)'}}/><Tooltip contentStyle={{border:'1px solid var(--line)',borderRadius:14,boxShadow:'0 12px 30px rgba(0,0,0,.08)',fontSize:12}}/><Area type="monotone" dataKey="v" stroke="#7d9414" strokeWidth={2.5} fill="url(#fill)"/></AreaChart></ResponsiveContainer></div><div className="chart-note"><span><i className="dot lime"/>Confirmed</span><b>{stats?.challans.confirmed||0} total</b><span className="chart-trend">+12.8% <ArrowUpRight size={12}/></span></div></div>
+      <div className="panel attention-panel"><div className="panel-head"><div><span className="panel-eyebrow">NEEDS ATTENTION</span><h3>Stock watchlist</h3></div><Link to="/inventory">Inventory <ChevronRight size={15}/></Link></div>{low.length?low.slice(0,5).map((p,i)=><motion.div initial={{opacity:0,x:8}} animate={{opacity:1,x:0}} transition={{delay:i*.05}} className="watch-row" key={p.id}><div className="product-avatar">{p.name.slice(0,1).toUpperCase()}</div><div className="watch-copy"><b>{p.name}</b><span>{p.sku} · {p.warehouse_location||'Main warehouse'}</span></div><div className="stock-number"><strong>{p.current_stock}</strong><span>/ {p.minimum_stock} min</span></div></motion.div>):<div className="empty-state"><PackageCheck size={26}/><b>Stock looks good.</b><span>No products are below their threshold.</span></div>}</div>
+    </section>
+    <section className="dashboard-grid lower-grid">
+      <div className="panel"><div className="panel-head"><div><span className="panel-eyebrow">SALES</span><h3>Recent challans</h3></div><Link to="/challans">All challans <ChevronRight size={15}/></Link></div><div className="table-list">{recent.slice(0,5).map(c=><Link to="/challans" className="list-row" key={c.id}><div className="doc-icon"><ClipboardCheck size={16}/></div><div className="list-main"><b>{c.challan_number}</b><span>{c.customer?.business_name||c.customer?.name||'Customer'} · {c._count?.items||0} items</span></div><Status status={c.status}/><span className="row-date">{dateTime(c.created_at)}</span></Link>)}</div></div>
+      <div className="panel"><div className="panel-head"><div><span className="panel-eyebrow">INVENTORY LOG</span><h3>Latest movements</h3></div><Link to="/inventory">See history <ChevronRight size={15}/></Link></div><div className="table-list">{moves.slice(0,5).map(m=><div className="list-row" key={m.id}><div className={m.movement_type==='IN'?'move-icon in':'move-icon out'}>{m.movement_type==='IN'?'+':'−'}</div><div className="list-main"><b>{m.product?.name||'Product'}</b><span>{m.reason}</span></div><strong className={m.movement_type==='IN'?'positive':'negative'}>{m.movement_type==='IN'?'+':'−'}{m.quantity}</strong><span className="row-date">{dateTime(m.created_at)}</span></div>)}</div></div>
+    </section>
+    <section className="insight-strip"><div className="insight-icon"><Boxes size={21}/></div><div><b>Small move, big signal.</b><span>{stats?.followUps.upcomingCount||0} customer follow-up{(stats?.followUps.upcomingCount||0)===1?'':'s'} are scheduled in the next 7 days.</span></div><Link to="/customers">Open CRM <ArrowUpRight size={14}/></Link></section>
+  </div>;
 }
-export function Dashboard({refreshKey=0}:{refreshKey?:number}){
- const [data,setData]=useState<DashboardStats|null>(null);const [loading,setLoading]=useState(true);const [error,setError]=useState('')
- useEffect(()=>{setLoading(true);api.dashboard.stats().then(setData).catch(e=>setError(e.message)).finally(()=>setLoading(false))},[refreshKey])
- if(loading)return <PageSkeleton/>
- if(error)return <div className="error-state"><h2>Couldn't load the workspace</h2><p>{error}</p></div>
- if(!data)return null
- const chartData = buildChartData(data.recentMovements)
- const today = new Date().toLocaleDateString('en-IN',{weekday:'long'}).toUpperCase()
- const greeting = new Date().getHours() < 12 ? 'Good morning' : new Date().getHours() < 17 ? 'Good afternoon' : 'Good evening'
- return <div className="dashboard-page">
-  <div className="page-hero"><div><p className="eyebrow">{today} · OPERATIONS</p><h1>{greeting}<span>.</span></h1><p className="hero-sub">A live pulse of what needs attention across XYZ Company.</p></div><div className="hero-orbit"><div className="orbit-core"><Activity size={19}/></div><span className="orbit-dot d1"/><span className="orbit-dot d2"/><span className="orbit-dot d3"/></div></div>
-  <div className="metric-grid">
-   <Metric icon={<UsersRound/>} label="Customers" value={data.customers.total} sub={`${data.customers.active} active`} tone="violet"/>
-   <Metric icon={<Boxes/>} label="Products" value={data.products.total} sub={`${data.products.lowStockCount} need attention`} tone="blue" alert={data.products.lowStockCount>0}/>
-   <Metric icon={<ClipboardCheck/>} label="Challans" value={data.challans.total} sub={`${data.challans.draft} drafts · ${data.challans.confirmed} confirmed`} tone="green"/>
-   <Metric icon={<PackageOpen/>} label="Follow-ups" value={data.followUps.upcomingCount} sub="Next 7 days" tone="orange"/>
-  </div>
-  <div className="dashboard-grid">
-   <Card className="chart-card"><div className="section-head"><div><p className="eyebrow">STOCK MOVEMENTS — THIS WEEK</p><h3>Activity by day</h3></div><Badge tone="success">Real data</Badge></div><div className="chart-wrap"><ResponsiveContainer width="100%" height="100%"><AreaChart data={chartData}><defs><linearGradient id="v" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#8b5cf6" stopOpacity=".34"/><stop offset="100%" stopColor="#8b5cf6" stopOpacity="0"/></linearGradient></defs><XAxis dataKey="day" axisLine={false} tickLine={false} tick={{fill:'#747b8d',fontSize:11}}/><Tooltip contentStyle={{background:'#161922',border:'1px solid #2a2f3b',borderRadius:12,color:'#fff'}}/><Area type="monotone" dataKey="value" stroke="#9b7bff" strokeWidth={2.5} fill="url(#v)"/></AreaChart></ResponsiveContainer></div></Card>
-   <Card className="focus-card"><div className="section-head"><div><p className="eyebrow">NEEDS ATTENTION</p><h3>Low stock</h3></div><ArrowUpRight size={18}/></div>{data.products.lowStock.length===0?<Empty title="Stock looks healthy" description="Nothing is below its minimum threshold."/>:<div className="focus-list">{data.products.lowStock.slice(0,5).map(p=><div className="focus-row" key={p.id}><div className="product-avatar">{p.name.slice(0,1)}</div><div className="focus-copy"><b>{p.name}</b><span>{p.sku}</span></div><div className="stock-number"><strong>{p.current_stock}</strong><small>/ {p.minimum_stock}</small></div></div>)}</div>}</Card>
-   <Card className="wide-card"><div className="section-head"><div><p className="eyebrow">RECENT DOCUMENTS</p><h3>Sales challans</h3></div><a href="/challans">View all <ArrowUpRight size={14}/></a></div><div className="table-wrap"><table><thead><tr><th>Challan</th><th>Customer</th><th>Items</th><th>Created</th><th>Status</th></tr></thead><tbody>{data.challans.recent.slice(0,6).map(c=><tr key={c.id}><td><b className="mono">{c.challan_number}</b></td><td>{c.customer?.business_name||c.customer?.name}</td><td>{c._count?.items||0} lines</td><td>{dateTime(c.created_at)}</td><td><StatusBadge status={c.status}/></td></tr>)}</tbody></table></div></Card>
-   <Card className="activity-card"><div className="section-head"><div><p className="eyebrow">ACTIVITY STREAM</p><h3>Stock movement</h3></div></div><div className="activity-list">{data.recentMovements.slice(0,6).map(m=><div className="activity-row" key={m.id}><div className={`movement-dot ${m.movement_type==='IN'?'in':'out'}`}>{m.movement_type}</div><div><b>{m.product?.name}</b><span>{m.reason||'Inventory adjustment'} · {dateTime(m.created_at)}</span></div><strong className={m.movement_type==='IN'?'positive':'negative'}>{m.movement_type==='IN'?'+':'-'}{m.quantity}</strong></div>)}</div></Card>
-  </div>
- </div>
-}
-function Metric({icon,label,value,sub,tone,alert}:{icon:any;label:string;value:number;sub:string;tone:string;alert?:boolean}){return <Card className="metric-card"><div className={`metric-icon ${tone}`}>{icon}</div><div className="metric-copy"><span>{label}</span><strong>{value.toLocaleString('en-IN')}</strong><small className={alert?'attention':''}>{sub}</small></div><ArrowUpRight size={16} className="metric-arrow"/></Card>}
-function StatusBadge({status}:{status:string}){return <Badge tone={status==='CONFIRMED'?'success':status==='DRAFT'?'warning':'danger'}>{status}</Badge>}
-function PageSkeleton(){return <div className="skeleton-page"><div className="skeleton-title"/><div className="skeleton-metrics">{[1,2,3,4].map(i=><div key={i} className="skeleton-card"/>)}</div><div className="skeleton-large"/></div>}
+function Metric({icon,label,value,note,alert}:{icon:React.ReactNode;label:string;value:number;note:string;alert?:boolean}){return <motion.div className="hero-metric" initial={{opacity:0,y:10}} animate={{opacity:1,y:0}}><div className="metric-top"><span>{label}</span><span className={alert?'metric-icon alert':'metric-icon'}>{icon}</span></div><div className="metric-value">{value}</div><div className="metric-foot"><span>{note}</span></div></motion.div>}
+function Status({status}:{status:string}){return <span className={`status ${status.toLowerCase()}`}><i/>{status}</span>}

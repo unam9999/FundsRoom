@@ -1,76 +1,54 @@
-import type { Challan, Customer, DashboardStats, Product, StockMovement, User, FollowUp } from '../types'
+import type { ApiError, User } from '../types';
 
-const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3000/api').replace(/\/$/, '')
-const TOKEN_KEY = 'xyz_erp_token'
+const BASE = (import.meta.env.VITE_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
+const TOKEN_KEY = 'xyz_session_token';
+const USER_KEY = 'xyz_session_user';
 
 export const session = {
-  get token() { return sessionStorage.getItem(TOKEN_KEY) },
-  set token(value: string | null) { value ? sessionStorage.setItem(TOKEN_KEY, value) : sessionStorage.removeItem(TOKEN_KEY) },
-  clear() { sessionStorage.removeItem(TOKEN_KEY) },
-}
+  getToken: () => sessionStorage.getItem(TOKEN_KEY),
+  getUser: (): User|null => { try { return JSON.parse(sessionStorage.getItem(USER_KEY) || 'null'); } catch { return null; } },
+  set: (token:string,user:User) => { sessionStorage.setItem(TOKEN_KEY,token); sessionStorage.setItem(USER_KEY,JSON.stringify(user)); },
+  clear: () => { sessionStorage.removeItem(TOKEN_KEY); sessionStorage.removeItem(USER_KEY); },
+};
 
-export class ApiError extends Error {
-  status: number
-  code?: string
-  constructor(message: string, status: number, code?: string) { super(message); this.name = 'ApiError'; this.status = status; this.code = code }
-}
-
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const headers = new Headers(init.headers)
-  headers.set('Accept', 'application/json')
-  if (init.body && !(init.body instanceof FormData)) headers.set('Content-Type', 'application/json')
-  const token = session.token
-  if (token) headers.set('Authorization', `Bearer ${token}`)
-
-  const response = await fetch(`${API_URL}${path}`, { ...init, headers })
-  let payload: any = null
-  try { payload = await response.json() } catch { /* empty body */ }
-
-  if (response.status === 401) session.clear()
+export async function api<T>(path:string, options:RequestInit = {}):Promise<T> {
+  const token = session.getToken();
+  const headers = new Headers(options.headers);
+  if (!headers.has('Content-Type') && options.body) headers.set('Content-Type','application/json');
+  if (token) headers.set('Authorization',`Bearer ${token}`);
+  const response = await fetch(`${BASE}${path}`, {...options,headers});
+  let payload:any = null;
+  try { payload = await response.json(); } catch { /* empty */ }
+  if (response.status === 401) { session.clear(); window.dispatchEvent(new Event('xyz:unauthorized')); }
   if (!response.ok) {
-    throw new ApiError(payload?.error?.message || 'Request failed. Please try again.', response.status, payload?.error?.code)
+    const err = payload as ApiError;
+    throw new Error(err?.error?.message || `Request failed (${response.status})`);
   }
-  return (payload?.data ?? payload) as T
+  return payload?.data as T;
 }
 
-const qs = (params: Record<string, string | number | boolean | undefined>) => {
-  const s = new URLSearchParams()
-  Object.entries(params).forEach(([k,v]) => v !== undefined && s.set(k, String(v)))
-  return s.toString() ? `?${s}` : ''
-}
-
-export const api = {
-  auth: {
-    login: (email: string, password: string) => request<{ token: string; user: User }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
-    me: () => request<User>('/auth/me'),
-  },
-  dashboard: { stats: () => request<DashboardStats>('/dashboard/stats') },
-  customers: {
-    list: (params: Record<string, string | number | undefined> = {}) => request<{ customers: Customer[]; total: number; page: number; limit: number }>(`/customers${qs(params)}`),
-    get: (id: string) => request<Customer & { follow_ups: FollowUp[]; challans: Challan[] }>(`/customers/${id}`),
-    create: (body: Partial<Customer>) => request<Customer>('/customers', { method: 'POST', body: JSON.stringify(body) }),
-    update: (id: string, body: Partial<Customer>) => request<Customer>(`/customers/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
-    remove: (id: string) => request<unknown>(`/customers/${id}`, { method: 'DELETE' }),
-    followUp: (id: string, body: { note: string; follow_up_date: string }) => request<FollowUp>(`/customers/${id}/followups`, { method: 'POST', body: JSON.stringify(body) }),
-  },
-  products: {
-    list: (params: Record<string, string | number | boolean | undefined> = {}) => request<{ products: Product[]; total: number; page: number; limit: number }>(`/products${qs(params)}`),
-    categories: () => request<string[]>('/products/categories'),
-    get: (id: string) => request<Product>(`/products/${id}`),
-    create: (body: Partial<Product>) => request<Product>('/products', { method: 'POST', body: JSON.stringify(body) }),
-    update: (id: string, body: Partial<Product>) => request<Product>(`/products/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
-    remove: (id: string) => request<unknown>(`/products/${id}`, { method: 'DELETE' }),
-  },
-  inventory: {
-    list: (params: Record<string, string | number | undefined> = {}) => request<{ products: Product[]; total: number; page: number; limit: number }>(`/inventory${qs(params)}`),
-    movements: (params: Record<string, string | number | undefined> = {}) => request<{ movements: StockMovement[]; total: number; page: number; limit: number }>(`/inventory/movements${qs(params)}`),
-    move: (body: { product_id: string; quantity: number; movement_type: 'IN'|'OUT'; reason?: string }) => request<StockMovement>('/inventory/movements', { method: 'POST', body: JSON.stringify(body) }),
-  },
-  challans: {
-    list: (params: Record<string, string | number | undefined> = {}) => request<{ challans: Challan[]; total: number; page: number; limit: number }>(`/challans${qs(params)}`),
-    get: (id: string) => request<Challan>(`/challans/${id}`),
-    create: (body: { customer_id: string; items: { product_id: string; quantity: number }[] }) => request<Challan>('/challans', { method: 'POST', body: JSON.stringify(body) }),
-    confirm: (id: string) => request<Challan>(`/challans/${id}/confirm`, { method: 'POST' }),
-    cancel: (id: string) => request<Challan>(`/challans/${id}/cancel`, { method: 'POST' }),
-  },
-}
+export const apiClient = {
+  login: (email:string,password:string) => api<{token:string;user:User}>('/auth/login',{method:'POST',body:JSON.stringify({email,password})}),
+  me: () => api<User>('/auth/me'),
+  dashboard: () => api<any>('/dashboard/stats'),
+  customers: (params:string='') => api<any>(`/customers${params}`),
+  customer: (id:string) => api<any>(`/customers/${id}`),
+  createCustomer: (body:any) => api<any>('/customers',{method:'POST',body:JSON.stringify(body)}),
+  updateCustomer: (id:string,body:any) => api<any>(`/customers/${id}`,{method:'PUT',body:JSON.stringify(body)}),
+  deleteCustomer: (id:string) => api<any>(`/customers/${id}`,{method:'DELETE'}),
+  addFollowUp: (id:string,body:any) => api<any>(`/customers/${id}/followups`,{method:'POST',body:JSON.stringify(body)}),
+  products: (params:string='') => api<any>(`/products${params}`),
+  product: (id:string) => api<any>(`/products/${id}`),
+  categories: () => api<string[]>('/products/categories'),
+  createProduct: (body:any) => api<any>('/products',{method:'POST',body:JSON.stringify(body)}),
+  updateProduct: (id:string,body:any) => api<any>(`/products/${id}`,{method:'PUT',body:JSON.stringify(body)}),
+  deleteProduct: (id:string) => api<any>(`/products/${id}`,{method:'DELETE'}),
+  inventory: (params:string='') => api<any>(`/inventory${params}`),
+  movements: (params:string='') => api<any>(`/inventory/movements${params}`),
+  createMovement: (body:any) => api<any>('/inventory/movements',{method:'POST',body:JSON.stringify(body)}),
+  challans: (params:string='') => api<any>(`/challans${params}`),
+  challan: (id:string) => api<any>(`/challans/${id}`),
+  createChallan: (body:any) => api<any>('/challans',{method:'POST',body:JSON.stringify(body)}),
+  confirmChallan: (id:string) => api<any>(`/challans/${id}/confirm`,{method:'POST'}),
+  cancelChallan: (id:string) => api<any>(`/challans/${id}/cancel`,{method:'POST'}),
+};

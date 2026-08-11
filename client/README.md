@@ -1,13 +1,12 @@
-# XYZ Company — ERP + CRM Frontend
+# XYZ Company — Operations Workspace
 
-A premium React + TypeScript operations portal built against the supplied XYZ Company Express/TypeScript API.
+A light-first React + TypeScript frontend for the XYZ Company Mini ERP + CRM case study. The visual system is intentionally original: warm paper surfaces, olive/lime operational accents, editorial typography, dense-but-calm tables, status-driven inventory cards, and motion used for feedback rather than decoration.
 
-## Stack
-- React + TypeScript + Vite
-- Framer Motion for interaction/micro-motion
-- Lucide React for icons
-- Recharts for dashboard visualization
-- Native `fetch` with a centralized authenticated API client
+## Design direction
+
+The interface takes reference from modern inventory/SaaS products such as Shelfy: simple information hierarchy, clear stock states, friendly cards and a dashboard that answers "what needs attention?" quickly. It does not copy Shelfy's assets, layout or branding.
+
+Reference inspiration: https://shelfy.ai/
 
 ## Run
 
@@ -17,32 +16,21 @@ cp .env.example .env
 npm run dev
 ```
 
-Default API URL:
+Set `VITE_API_URL` to the backend API base URL, for example:
 
 ```env
 VITE_API_URL=http://localhost:3000/api
 ```
 
-## Production
-Set `VITE_API_URL` to the deployed backend API URL before building.
+## Security boundary
 
-## Backend contract used
-- `POST /auth/login`
-- `GET /auth/me`
-- `GET /dashboard/stats`
-- Customers CRUD + follow-ups
-- Products CRUD + categories
-- Inventory + movements
-- Challans list/detail/create/confirm/cancel
+- JWT is sent only as an Authorization bearer token.
+- Session credentials are stored in `sessionStorage`, not persistent localStorage.
+- A 401 clears the session and returns the user to login.
+- The frontend never stores database credentials or server secrets.
+- Role-aware UI is a usability layer; authorization remains enforced by the backend.
+- All business-critical validation and stock rules remain server-side.
 
-## Security notes
-- Bearer JWT is kept in `sessionStorage` rather than persistent local storage.
-- No token, password, or authorization header is logged by the frontend.
-- API access is centralized through `src/lib/api.ts`.
-- A 401 response clears the client session and returns the user to login.
-- Role checks are used for UX visibility, but authorization remains enforced by the backend.
-- No secrets belong in `VITE_*` variables. Vite variables are public to the browser.
-- The backend must retain its own validation, RBAC, CORS, rate limiting and transaction controls.
+## Backend contract
 
-## Design direction
-The UI is intentionally original: dark graphite canvas, electric-violet accent, soft glass surfaces, bento-style metrics, editorial typography, animated state transitions and dense business tables. It is inspired by modern high-end product interfaces without copying any specific site or component library.
+The frontend is wired to the uploaded XYZ Company Express API: `/auth`, `/dashboard`, `/customers`, `/products`, `/inventory`, and `/challans`.

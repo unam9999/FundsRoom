@@ -1,39 +1,49 @@
-import { useEffect, useState } from 'react'
-import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
-import { AnimatePresence, motion } from 'framer-motion'
-import { AppLayout } from './components/layout'
-import { Toasts } from './components/ui'
-import { api, session } from './lib/api'
-import { Customers } from './pages/Customers'
-import { Dashboard } from './pages/Dashboard'
-import { Inventory } from './pages/Inventory'
-import { Login } from './pages/Login'
-import { Products } from './pages/Products'
-import { Challans } from './pages/Challans'
-import type { User } from './types'
+import { useEffect, useState } from 'react';
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { AnimatePresence, motion } from 'framer-motion';
+import { session, apiClient } from './lib/api';
+import type { User } from './types';
+import Shell from './components/Shell';
+import Login from './pages/Login';
+import Dashboard from './pages/Dashboard';
+import Customers from './pages/Customers';
+import Products from './pages/Products';
+import Inventory from './pages/Inventory';
+import Challans from './pages/Challans';
 
-function App(){
- const [user,setUser]=useState<User|null>(null);const [booting,setBooting]=useState(true);const [toasts,setToasts]=useState<{id:number;type:'success'|'error';message:string}[]>([]);const [refreshKey,setRefreshKey]=useState(0)
- const toast=(type:'success'|'error',message:string)=>{const id=Date.now()+Math.random();setToasts(x=>[...x,{id,type,message}]);window.setTimeout(()=>setToasts(x=>x.filter(t=>t.id!==id)),4200)}
- useEffect(()=>{if(!session.token){setBooting(false);return}api.auth.me().then(setUser).catch(()=>{session.clear();setUser(null)}).finally(()=>setBooting(false))},[])
- if(booting)return <Boot/>
- return <>
-  <Routes>
-    <Route path="/login" element={user?<Navigate to="/dashboard" replace/>:<Login onLogin={setUser}/>}/>
-    <Route element={user?<AppLayout user={user} onLogout={()=>setUser(null)}/>:<Navigate to="/login" replace/>}>
-      <Route index element={<Navigate to="/dashboard" replace/>}/>
-      <Route path="dashboard" element={<Dashboard refreshKey={refreshKey}/>}/>
-      <Route path="customers" element={user?<Customers user={user} onToast={toast}/>:<Navigate to="/login"/>}/>
-      <Route path="products" element={user?<Products user={user} onToast={toast}/>:<Navigate to="/login"/>}/>
-      <Route path="inventory" element={user?<Inventory user={user} onToast={toast}/>:<Navigate to="/login"/>}/>
-      <Route path="challans" element={user?<Challans user={user} onToast={toast}/>:<Navigate to="/login"/>}/>
-      <Route path="settings" element={user?<Settings user={user}/>:<Navigate to="/login"/>}/>
-    </Route>
-    <Route path="*" element={<Navigate to={user?'/dashboard':'/login'} replace/>}/>
-  </Routes>
-  <Toasts items={toasts} onRemove={id=>setToasts(x=>x.filter(t=>t.id!==id))}/>
- </>
+function Protected(){
+  const [user,setUser] = useState<User|null>(session.getUser());
+  const [checking,setChecking] = useState(!!session.getToken() && !user);
+  const nav = useNavigate();
+  useEffect(()=>{
+    const onUnauthorized=()=>{setUser(null);nav('/login',{replace:true});};
+    window.addEventListener('xyz:unauthorized',onUnauthorized);
+    if(session.getToken() && !user){ apiClient.me().then(u=>{setUser(u);sessionStorage.setItem('xyz_session_user',JSON.stringify(u));}).catch(onUnauthorized).finally(()=>setChecking(false)); }
+    return ()=>window.removeEventListener('xyz:unauthorized',onUnauthorized);
+  },[nav,user]);
+  if(checking) return <div className="boot-screen"><div className="brand-mark">X</div><div className="loader-line"/></div>;
+  if(!user) return <Navigate to="/login" replace/>;
+  return <Shell user={user} onLogout={()=>{session.clear();setUser(null);nav('/login');}}/>;
 }
-function Boot(){return <div className="boot"><motion.div className="boot-mark" animate={{rotate:360}} transition={{duration:1.3,repeat:Infinity,ease:'linear'}}><span/></motion.div><p>Loading secure workspace</p></div>}
-function Settings({user}:{user:User}){return <div className="content-page"><div className="content-title"><div><p className="eyebrow">WORKSPACE</p><h1>Settings</h1><p>Session and workspace information for your account.</p></div></div><div className="settings-grid"><div className="setting-card"><p className="eyebrow">SESSION</p><h3>Authenticated identity</h3><div className="setting-row"><span>Name</span><b>{user.name}</b></div><div className="setting-row"><span>Email</span><b>{user.email}</b></div><div className="setting-row"><span>Role</span><b>{user.role}</b></div><div className="setting-row"><span>Transport</span><b>Bearer JWT</b></div></div><div className="setting-card security-card"><div className="security-ring">✓</div><p className="eyebrow">SECURITY POSTURE</p><h3>Client-side safeguards</h3><p>Session token is stored in sessionStorage, API requests use a centralized authenticated client, and a 401 response clears the session. Server-side RBAC and validation remain authoritative.</p></div></div></div>}
-export default App
+
+function AnimatedRoutes(){
+  const location=useLocation();
+  return <AnimatePresence mode="wait"><motion.div key={location.pathname} initial={{opacity:0,y:8}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-5}} transition={{duration:.18}} className="route-frame">
+    <Routes location={location}>
+      <Route path="/" element={<Navigate to="/dashboard" replace/>}/>
+      <Route path="/login" element={<Login/>}/>
+      <Route element={<Protected/>}>
+        <Route path="/dashboard" element={<Dashboard/>}/>
+        <Route path="/customers" element={<Customers/>}/>
+        <Route path="/products" element={<Products/>}/>
+        <Route path="/inventory" element={<Inventory/>}/>
+        <Route path="/challans" element={<Challans/>}/>
+      </Route>
+      <Route path="*" element={<Navigate to="/dashboard" replace/>}/>
+    </Routes>
+  </motion.div></AnimatePresence>;
+}
+
+export default function App(){
+  return <AnimatedRoutes/>;
+}

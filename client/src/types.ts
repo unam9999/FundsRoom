@@ -1,15 +1,10 @@
-export type Role = 'ADMIN' | 'SALES' | 'WAREHOUSE' | 'ACCOUNTS'
-export type CustomerType = 'RETAIL' | 'WHOLESALE' | 'DISTRIBUTOR'
-export type CustomerStatus = 'ACTIVE' | 'INACTIVE'
-export type ChallanStatus = 'DRAFT' | 'CONFIRMED' | 'CANCELLED'
-export type MovementType = 'IN' | 'OUT'
-
-export interface User { id: string; name: string; email: string; role: Role; is_active?: boolean }
-export interface Customer { id: string; name: string; mobile: string; email?: string | null; business_name?: string | null; gst_number?: string | null; customer_type: CustomerType; address?: string | null; status: CustomerStatus; created_at: string; _count?: { follow_ups: number; challans: number } }
-export interface FollowUp { id: string; note: string; follow_up_date: string; created_at: string; creator?: { id: string; name: string; role?: Role }; customer?: Pick<Customer,'id'|'name'|'business_name'> }
-export interface Product { id: string; name: string; sku: string; category: string; unit_price: string | number; current_stock: number; minimum_stock: number; warehouse_location?: string | null; created_at: string; updated_at?: string; stock_movements?: StockMovement[] }
-export interface StockMovement { id: string; quantity: number; movement_type: MovementType; reason?: string | null; created_at: string; product?: Pick<Product,'id'|'name'|'sku'>; creator?: Pick<User,'id'|'name'> }
-export interface ChallanItem { id?: string; product_id: string; product_name_snapshot: string; sku_snapshot: string; unit_price_snapshot: string | number; quantity: number; product?: Product }
-export interface Challan { id: string; challan_number: string; customer_id: string; total_quantity: number; status: ChallanStatus; created_at: string; updated_at?: string; customer?: Pick<Customer,'id'|'name'|'business_name'>; creator?: Pick<User,'id'|'name'> & { role?: Role }; items?: ChallanItem[]; _count?: { items: number } }
-export interface DashboardStats { customers: { total: number; active: number }; products: { total: number; lowStock: Product[]; lowStockCount: number }; challans: { total: number; draft: number; confirmed: number; recent: Challan[] }; followUps: { upcoming: FollowUp[]; upcomingCount: number }; recentMovements: StockMovement[] }
-export interface Paginated<T> { [key: string]: unknown; total: number; page: number; limit: number; }
+export type Role = 'ADMIN' | 'SALES' | 'WAREHOUSE' | 'ACCOUNTS';
+export type User = { id:string; name:string; email:string; role:Role; is_active?:boolean };
+export type Customer = { id:string; name:string; mobile:string; email?:string|null; business_name?:string|null; gst_number?:string|null; customer_type:'RETAIL'|'WHOLESALE'|'DISTRIBUTOR'; address?:string|null; status:'ACTIVE'|'INACTIVE'; created_at:string; updated_at:string; followUps?:FollowUp[] };
+export type FollowUp = { id:string; note:string; follow_up_date:string; created_at:string; creator?:{name:string} };
+export type Product = { id:string; name:string; sku:string; category:string; unit_price:number|string; current_stock:number; minimum_stock:number; warehouse_location?:string|null; created_at:string; updated_at:string };
+export type Movement = { id:string; product_id:string; quantity:number; movement_type:'IN'|'OUT'; reason:string; created_at:string; product?:{id:string;name:string;sku:string}; creator?:{id:string;name:string} };
+export type Challan = { id:string; challan_number:string; customer_id:string; total_quantity:number; status:'DRAFT'|'CONFIRMED'|'CANCELLED'; created_by:string; created_at:string; customer?:{id:string;name:string;business_name?:string|null}; creator?:{id:string;name:string;role?:Role}; _count?:{items:number}; items?:ChallanItem[] };
+export type ChallanItem = { id:string; product_id:string; product_name_snapshot:string; sku_snapshot:string; unit_price_snapshot:number|string; quantity:number; product?:Product };
+export type DashboardStats = { customers:{total:number;active:number}; products:{total:number;lowStockCount:number;lowStock:Product[]}; challans:{total:number;draft:number;confirmed:number;recent:Challan[]}; followUps:{upcoming:FollowUp[];upcomingCount:number}; recentMovements:Movement[] };
+export type ApiError = { error?:{code?:string;message?:string} };
