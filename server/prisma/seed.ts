@@ -358,6 +358,69 @@ async function main() {
 
   console.log('✅ Initial stock movements created');
 
+  // ─── Additional movements spread across the week (populates dashboard chart) ──
+  const daysAgo = (n: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() - n);
+    return d;
+  };
+
+  // Day-spread movements so the weekly chart has real variation
+  const weekMovements = [
+    // 6 days ago
+    { product: products[2], qty: 40, type: MovementType.IN, reason: 'Supplier delivery — PVC batch', daysBack: 6 },
+    { product: products[3], qty: 10, type: MovementType.OUT, reason: 'Site delivery — Block C project', daysBack: 6 },
+    // 5 days ago
+    { product: products[4], qty: 80, type: MovementType.IN, reason: 'Received from warehouse Mumbai', daysBack: 5 },
+    { product: products[5], qty: 25, type: MovementType.OUT, reason: 'Customer pickup — Sanjay Gupta', daysBack: 5 },
+    // 4 days ago
+    { product: products[6], qty: 60, type: MovementType.IN, reason: 'Restocked from supplier', daysBack: 4 },
+    { product: products[7], qty: 50, type: MovementType.OUT, reason: 'Bulk dispatch — Devi Enterprise', daysBack: 4 },
+    { product: products[8], qty: 15, type: MovementType.OUT, reason: 'Sample dispatch — Retail customer', daysBack: 4 },
+    // 3 days ago
+    { product: products[9], qty: 30, type: MovementType.IN, reason: 'Emergency restock', daysBack: 3 },
+    { product: products[10], qty: 20, type: MovementType.IN, reason: 'Supplier payment cleared — delivery received', daysBack: 3 },
+    { product: products[0], qty: 200, type: MovementType.IN, reason: 'Q3 bulk purchase received', daysBack: 3 },
+    // 2 days ago
+    { product: products[1], qty: 500, type: MovementType.IN, reason: 'Annual stock replenishment', daysBack: 2 },
+    { product: products[11], qty: 30, type: MovementType.OUT, reason: 'Workshop material issue', daysBack: 2 },
+    { product: products[4], qty: 50, type: MovementType.OUT, reason: 'Khan Wholesale delivery', daysBack: 2 },
+    // Yesterday
+    { product: products[2], qty: 20, type: MovementType.OUT, reason: 'Pipeline installation — Site A', daysBack: 1 },
+    { product: products[6], qty: 40, type: MovementType.OUT, reason: 'Dispatch to Farhan Khan', daysBack: 1 },
+    { product: products[3], qty: 15, type: MovementType.IN, reason: 'Returned goods — damaged replacement', daysBack: 1 },
+    // Today
+    { product: products[5], qty: 30, type: MovementType.IN, reason: 'Morning delivery received', daysBack: 0 },
+    { product: products[7], qty: 40, type: MovementType.OUT, reason: 'Dispatch to Singh Traders', daysBack: 0 },
+  ];
+
+  for (const mv of weekMovements) {
+    const createdAt = daysAgo(mv.daysBack);
+    await prisma.stockMovement.create({
+      data: {
+        product_id: mv.product.id,
+        quantity: mv.qty,
+        movement_type: mv.type,
+        reason: mv.reason,
+        created_by: warehouseUser.id,
+        created_at: createdAt,
+      } as any,
+    });
+    // Adjust product stock accordingly
+    if (mv.type === MovementType.IN) {
+      await prisma.product.update({ where: { id: mv.product.id }, data: { current_stock: { increment: mv.qty } } });
+    } else {
+      // only decrement if we have enough stock
+      const p = await prisma.product.findUnique({ where: { id: mv.product.id }, select: { current_stock: true } });
+      if (p && p.current_stock >= mv.qty) {
+        await prisma.product.update({ where: { id: mv.product.id }, data: { current_stock: { decrement: mv.qty } } });
+      }
+    }
+  }
+
+  console.log('✅ Weekly movement data added');
+
+
   // ─── Challans ─────────────────────────────────────────────────────────────────
 
   // Confirmed challan
