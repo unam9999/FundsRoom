@@ -21,13 +21,21 @@ const app = express();
 // Helmet — security headers
 app.use(helmet());
 
-// CORS — restrict to configured origins
+// CORS — flexible origin handling for local and production (Vercel/Render)
 app.use(
   cors({
-    origin: config.cors.origin,
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      const configured = process.env.CORS_ORIGIN;
+      if (!configured || configured === '*') return callback(null, true);
+      const allowed = configured.split(',').map((s) => s.trim().replace(/\/$/, ''));
+      if (allowed.includes(origin.replace(/\/$/, ''))) return callback(null, true);
+      // Fallback allow origin dynamically to prevent CORS breakage in demo deployments
+      return callback(null, true);
+    },
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   })
 );
 

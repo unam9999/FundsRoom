@@ -1,6 +1,6 @@
 import type { ApiError, User } from '../types';
 
-const BASE = (import.meta.env.VITE_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
+const BASE = (import.meta.env.VITE_API_URL || 'https://fundsroom-auor.onrender.com/api').replace(/\/$/, '');
 const TOKEN_KEY = 'xyz_session_token';
 const USER_KEY = 'xyz_session_user';
 
