@@ -1,0 +1,14 @@
+{
+  "name": "xyz-company-erp",
+  "version": "1.0.0",
+  "description": "XYZ Company — Mini ERP + CRM Operations Portal (Backend)",
+  "private": true,
+  "scripts": {
+    "dev": "cd server && npm run dev",
+    "build": "cd server && npm run build",
+    "start": "cd server && npm start",
+    "test": "cd server && npm test",
+    "seed": "cd server && npx prisma db seed",
+    "migrate": "cd server && npx prisma migrate dev"
+  }
+}
